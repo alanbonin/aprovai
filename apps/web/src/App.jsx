@@ -10,19 +10,8 @@ import HomeScreen      from "./screens/HomeScreen";
 import StudyScreen     from "./screens/StudyScreen";
 import SimuladoScreen  from "./screens/SimuladoScreen";
 import ProfileScreen   from "./screens/ProfileScreen";
-
-// Placeholder flashcard screen
-function FlashScreen() {
-  return (
-    <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: C.text2 }}>
-      <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>🃏</div>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>Flashcards</div>
-        <div style={{ fontSize: 12, color: C.text3, marginTop: 4 }}>Em breve</div>
-      </div>
-    </div>
-  );
-}
+import FlashScreen     from "./screens/FlashScreen";
+import AdminScreen     from "./screens/AdminScreen";
 
 function AppShell() {
   const { user, loading } = useAuth();
@@ -46,18 +35,17 @@ function AppShell() {
       case "flash":    return <FlashScreen />;
       case "simulado": return <SimuladoScreen />;
       case "profile":  return <ProfileScreen />;
+      case "admin":    return <AdminScreen />;
       default:         return <HomeScreen onNavigate={handleNavigate} />;
     }
   };
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg0 }}>
-      {/* Screen */}
       <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
         {renderScreen()}
       </div>
-      {/* Bottom nav */}
-      <BottomTabs active={tab} onChange={t => { setTab(t); if (t !== "study") setStudyParams({}); }} />
+      <BottomTabs active={tab} onChange={t => { setTab(t); if (t !== "study") setStudyParams({}); }} isAdmin={user?.is_admin} />
     </div>
   );
 }

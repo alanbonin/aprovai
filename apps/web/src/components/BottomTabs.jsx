@@ -8,14 +8,18 @@ const TABS = [
   { id: "profile",   icon: "👤", label: "Perfil"     },
 ];
 
-export default function BottomTabs({ active, onChange }) {
+export default function BottomTabs({ active, onChange, isAdmin }) {
+  const tabs = isAdmin
+    ? [...TABS, { id: "admin", icon: "⚙️", label: "Admin" }]
+    : TABS;
+
   return (
     <nav className="safe-bottom" style={{
       display: "flex", background: C.bg1,
       borderTop: `1px solid ${C.border}`,
       flexShrink: 0,
     }}>
-      {TABS.map(t => {
+      {tabs.map(t => {
         const isActive = active === t.id;
         return (
           <button key={t.id} onClick={() => onChange(t.id)}

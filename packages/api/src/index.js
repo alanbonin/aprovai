@@ -12,6 +12,7 @@ const simRoutes      = require("./routes/simulados");
 const payRoutes      = require("./routes/payments");
 const adminRoutes    = require("./routes/admin");
 const aiRoutes       = require("./routes/ai");
+const statsRoutes    = require("./routes/stats");
 
 const app = Fastify({ logger: process.env.NODE_ENV !== "production" });
 
@@ -57,6 +58,7 @@ app.register(simRoutes,      { prefix: "/api/simulados" });
 app.register(payRoutes,      { prefix: "/api/payments" });
 app.register(adminRoutes,    { prefix: "/api/admin" });
 app.register(aiRoutes,       { prefix: "/api/ai" });
+app.register(statsRoutes,    { prefix: "/api/stats" });
 
 app.get("/health", async () => ({ ok: true, ts: Date.now() }));
 
