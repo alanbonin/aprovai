@@ -1,4 +1,7 @@
 // Cliente HTTP com JWT auto-refresh
+// VITE_API_URL: vazio em dev (usa proxy Vite), URL do Railway em produção
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
 let accessToken = null;
 let refreshToken = localStorage.getItem("aprovai_refresh") || null;
 
@@ -21,7 +24,7 @@ export function hasRefreshToken() {
 
 async function refreshAccessToken() {
   if (!refreshToken) throw new Error("sem refresh token");
-  const res = await fetch("/api/auth/refresh", {
+  const res = await fetch(`${API_BASE}/api/auth/refresh`, {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
     body:    JSON.stringify({ refreshToken }),
@@ -36,7 +39,7 @@ export async function apiFetch(path, options = {}) {
   const doFetch = async (token) => {
     const headers = { "Content-Type": "application/json", ...options.headers };
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    const res = await fetch(path, { ...options, headers });
+    const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
     return res;
   };
 
