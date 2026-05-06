@@ -1,0 +1,26 @@
+{
+  "name": "aprovai",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Plataforma multi-agente para concursos públicos",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api":    "pnpm --filter api dev",
+    "dev:web":    "pnpm --filter web dev",
+    "dev":        "concurrently \"pnpm dev:api\" \"pnpm dev:web\"",
+    "build:web":  "pnpm --filter web build",
+    "db:migrate": "pnpm --filter db migrate",
+    "db:seed":    "pnpm --filter db seed",
+    "generate:questions": "node scripts/gen-questions.js"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  }
+}
