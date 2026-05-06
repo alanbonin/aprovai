@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "AprovAI",
+    "slug": "aprovai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0d1117",
+    "splash": {
+      "backgroundColor": "#0d1117"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.aprovai.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0d1117"
+      },
+      "package": "com.aprovai.app"
+    },
+    "extra": {
+      "apiUrl": "https://aprovai-api.up.railway.app"
+    }
+  }
+}

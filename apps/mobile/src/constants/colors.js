@@ -1,0 +1,22 @@
+// GitHub Dark — igual ao web
+export const C = {
+  bg0:    "#0d1117",
+  bg1:    "#161b22",
+  bg2:    "#21262d",
+  bg3:    "#2d333b",
+  border: "#30363d",
+  text:   "#c9d1d9",
+  text2:  "#8b949e",
+  text3:  "#484f58",
+  amber:  "#f5a623",
+  amberB: "#f5a62388",
+  amberD: "#f5a62318",
+  blue:   "#5b9ef8",
+  blueD:  "#5b9ef812",
+  green:  "#3fb950",
+  greenB: "#3fb95066",
+  greenD: "#3fb95018",
+  red:    "#f85149",
+  redB:   "#f8514966",
+  redD:   "#f8514918",
+};
