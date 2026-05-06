@@ -4,7 +4,7 @@
  */
 
 // ── Áreas de concurso ────────────────────────────────────────
-const AREAS = [
+export const AREAS = [
   {
     id: "tributario",
     name: "Tributário / Auditoria",
@@ -128,7 +128,7 @@ const AREAS = [
 ];
 
 // ── Bancas examinadoras ──────────────────────────────────────
-const BANCAS = [
+export const BANCAS = [
   {
     id: "cespe",
     name: "CESPE / CEBRASPE",
@@ -196,16 +196,14 @@ const BANCAS = [
 ];
 
 // ── Helpers ───────────────────────────────────────────────────
-function agentId(areaId, bancaId) {
+export function agentId(areaId, bancaId) {
   return `${areaId}__${bancaId}`;
 }
 
-function parseAgentId(id) {
+export function parseAgentId(id) {
   const [areaId, bancaId] = id.split("__");
   return {
     area:  AREAS.find(a => a.id === areaId)  || null,
     banca: BANCAS.find(b => b.id === bancaId) || null,
   };
 }
-
-module.exports = { AREAS, BANCAS, agentId, parseAgentId };

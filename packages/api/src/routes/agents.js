@@ -4,7 +4,7 @@ module.exports = async function(app) {
 
   // GET /api/agents — lista todos agentes disponíveis
   app.get("/", async () => {
-    const { AREAS, BANCAS } = require("../../../shared/src/agents");
+    const { AREAS, BANCAS } = await import("../../../shared/src/agents.js");
     return { areas: AREAS, bancas: BANCAS };
   });
 
