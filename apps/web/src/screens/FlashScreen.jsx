@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAgent } from "../hooks/useAgent";
 import { C } from "../constants/colors";
 import { Spinner, Badge, Btn } from "../components/UI";
+import { api } from "../api/client";
 
 export default function FlashScreen() {
   const { activeAgent, fetchFlashcards } = useAgent();
@@ -20,13 +21,10 @@ export default function FlashScreen() {
   const [subsLoading, setSubsLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch available subjects with flashcards
-    import("../api/client").then(({ api }) => {
-      api.get(`/api/flashcards/subjects?areaId=${area.id}&bancaId=${banca.id}`)
-        .then(d => setSubjectList(d.subjects || []))
-        .catch(() => setSubjectList([]))
-        .finally(() => setSubsLoading(false));
-    });
+    api.get(`/api/flashcards/subjects?areaId=${area.id}&bancaId=${banca.id}`)
+      .then(d => setSubjectList(d.subjects || []))
+      .catch(() => setSubjectList([]))
+      .finally(() => setSubsLoading(false));
   }, [area.id, banca.id]);
 
   async function startSubject(subj) {
