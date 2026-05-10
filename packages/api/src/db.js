@@ -1,204 +1,256 @@
-const { Pool } = require("pg");
+const { createClient } = require("@supabase/supabase-js");
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  { auth: { persistSession: false } }
+);
 
-async function q(sql, params = []) {
-  const { rows } = await pool.query(sql, params);
-  return rows;
-}
-async function one(sql, params = []) {
-  return (await q(sql, params))[0] || null;
+// Helper — throw on Supabase error
+function check({ data, error }, single = false) {
+  if (error) throw new Error(error.message);
+  return single ? data : data;
 }
 
 // ── Usuários ──────────────────────────────────────────────────
 
 async function createUser({ email, username, passwordHash }) {
-  return one(
-    `INSERT INTO users (email, username, password_hash)
-     VALUES ($1, $2, $3)
-     RETURNING *`,
-    [email, username, passwordHash]
-  );
+  const { data, error } = await supabase
+    .from("users")
+    .insert({ email, username, password_hash: passwordHash })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 async function getUserByEmail(email) {
-  return one("SELECT * FROM users WHERE email = $1", [email]);
+  const { data } = await supabase
+    .from("users").select("*").eq("email", email).maybeSingle();
+  return data;
 }
 
 async function getUserById(id) {
-  return one("SELECT * FROM users WHERE id = $1", [id]);
+  const { data } = await supabase
+    .from("users").select("*").eq("id", id).maybeSingle();
+  return data;
 }
 
 async function listUsers() {
-  return q("SELECT id, email, username, is_admin, created_at FROM users ORDER BY created_at DESC");
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, email, username, is_admin, created_at")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 async function promoteUser(userId) {
-  return one("UPDATE users SET is_admin = true WHERE id = $1 RETURNING *", [userId]);
+  const { data, error } = await supabase
+    .from("users").update({ is_admin: true }).eq("id", userId).select().single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 // ── Refresh tokens ────────────────────────────────────────────
 
 async function saveRefreshToken({ userId, tokenHash, expiresAt }) {
-  return one(
-    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-     VALUES ($1, $2, $3)
-     RETURNING *`,
-    [userId, tokenHash, expiresAt]
-  );
+  const { data, error } = await supabase
+    .from("refresh_tokens")
+    .insert({ user_id: userId, token_hash: tokenHash, expires_at: expiresAt })
+    .select().single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 async function getRefreshToken(tokenHash) {
-  return one("SELECT * FROM refresh_tokens WHERE token_hash = $1", [tokenHash]);
+  const { data } = await supabase
+    .from("refresh_tokens").select("*").eq("token_hash", tokenHash).maybeSingle();
+  return data;
 }
 
 async function revokeRefreshToken(tokenHash) {
-  return one("UPDATE refresh_tokens SET revoked = true WHERE token_hash = $1 RETURNING id", [tokenHash]);
+  const { data, error } = await supabase
+    .from("refresh_tokens").update({ revoked: true }).eq("token_hash", tokenHash).select("id").single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 // ── Agentes / assinaturas ─────────────────────────────────────
 
 async function getUserAgents(userId) {
-  return q(
-    "SELECT area_id, banca_id, active, created_at FROM user_agents WHERE user_id = $1 AND active = true",
-    [userId]
-  );
+  const { data, error } = await supabase
+    .from("user_agents")
+    .select("area_id, banca_id, active, created_at")
+    .eq("user_id", userId)
+    .eq("active", true);
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 async function getUserSubscription(userId) {
-  return one(
-    "SELECT * FROM subscriptions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1",
-    [userId]
-  );
+  const { data } = await supabase
+    .from("subscriptions")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data;
 }
 
 async function activateUserAgent({ userId, areaId, bancaId }) {
-  return one(
-    `INSERT INTO user_agents (user_id, area_id, banca_id)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (user_id, area_id, banca_id) DO UPDATE SET active = true
-     RETURNING *`,
-    [userId, areaId, bancaId]
-  );
+  const { data, error } = await supabase
+    .from("user_agents")
+    .upsert(
+      { user_id: userId, area_id: areaId, banca_id: bancaId, active: true },
+      { onConflict: "user_id,area_id,banca_id" }
+    )
+    .select().single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 async function createSubscription({ userId, planId, stripeSubId, stripeCustomerId, status }) {
-  return one(
-    `INSERT INTO subscriptions (user_id, plan_id, stripe_sub_id, stripe_customer_id, status)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING *`,
-    [userId, planId, stripeSubId, stripeCustomerId, status]
-  );
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .insert({ user_id: userId, plan_id: planId, stripe_sub_id: stripeSubId, stripe_customer_id: stripeCustomerId, status })
+    .select().single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 async function updateSubscriptionStatus({ stripeSubId, status, periodEnd }) {
-  return one(
-    `UPDATE subscriptions
-     SET status = $2, current_period_end = $3
-     WHERE stripe_sub_id = $1
-     RETURNING *`,
-    [stripeSubId, status, periodEnd]
-  );
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .update({ status, current_period_end: periodEnd })
+    .eq("stripe_sub_id", stripeSubId)
+    .select().single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 // ── Questões ──────────────────────────────────────────────────
 
 async function getQuestion({ areaId, bancaId, subject, seen = [], filtro = "naorespondidas", userId }) {
-  const seenClause = seen.length
-    ? `AND q.id NOT IN (${seen.map((_, i) => `$${i + 5}`).join(",")})`
-    : "";
+  // Fetch candidates
+  let query = supabase
+    .from("questions")
+    .select("*")
+    .eq("area_id", areaId)
+    .eq("banca_id", bancaId)
+    .eq("subject", subject)
+    .limit(200);
 
-  let filtroJoin = "";
-  let filtroWhere = "";
+  if (seen.length) query = query.not("id", "in", `(${seen.join(",")})`);
 
-  if (filtro === "naorespondidas") {
-    filtroJoin  = `LEFT JOIN user_progress up ON up.question_id = q.id AND up.user_id = $4`;
-    filtroWhere = `AND up.question_id IS NULL`;
-  } else if (filtro === "erradas") {
-    filtroJoin  = `INNER JOIN user_progress up ON up.question_id = q.id AND up.user_id = $4 AND up.correct = false`;
+  const { data: candidates, error } = await query;
+  if (error) throw new Error(error.message);
+  if (!candidates?.length) return null;
+
+  // Apply filtro in JS
+  let pool = candidates;
+  if (filtro === "naorespondidas" || filtro === "erradas") {
+    const { data: progress } = await supabase
+      .from("user_progress")
+      .select("question_id, correct")
+      .eq("user_id", userId);
+
+    const progressMap = {};
+    for (const p of (progress || [])) progressMap[p.question_id] = p.correct;
+
+    if (filtro === "naorespondidas") {
+      pool = candidates.filter(c => !(c.id in progressMap));
+    } else {
+      pool = candidates.filter(c => progressMap[c.id] === false);
+    }
+    if (!pool.length) pool = candidates; // fallback to all
   }
-  // "todas" — sem join extra
 
-  const sql = `
-    SELECT q.* FROM questions q
-    ${filtroJoin}
-    WHERE q.area_id = $1 AND q.banca_id = $2 AND q.subject = $3
-    ${filtroWhere}
-    ${seenClause}
-    ORDER BY RANDOM()
-    LIMIT 1
-  `;
-
-  const params = [areaId, bancaId, subject, userId, ...seen];
-  return one(sql, params);
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 async function listQuestions({ areaId, bancaId, subject }) {
-  const subjClause = subject ? "AND subject = $3" : "";
-  const params = subject ? [areaId, bancaId, subject] : [areaId, bancaId];
-  return q(
-    `SELECT id, subject, enunciado, correta, topico, artigo, created_at
-     FROM questions
-     WHERE area_id = $1 AND banca_id = $2 ${subjClause}
-     ORDER BY created_at DESC`,
-    params
-  );
+  let query = supabase
+    .from("questions")
+    .select("id, subject, enunciado, correta, topico, artigo, created_at")
+    .eq("area_id", areaId)
+    .eq("banca_id", bancaId)
+    .order("created_at", { ascending: false });
+
+  if (subject) query = query.eq("subject", subject);
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 async function saveQuestion({ areaId, bancaId, subject, enunciado, alternativas, correta, justificativa, topico, artigo }) {
-  const row = await one(
-    `INSERT INTO questions (area_id, banca_id, subject, enunciado, alternativas, correta, justificativa, topico, artigo)
-     VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9)
-     RETURNING id`,
-    [areaId, bancaId, subject, enunciado, JSON.stringify(alternativas), correta, justificativa, topico, artigo]
-  );
-  return row.id;
+  const { data, error } = await supabase
+    .from("questions")
+    .insert({ area_id: areaId, banca_id: bancaId, subject, enunciado, alternativas, correta, justificativa, topico, artigo })
+    .select("id").single();
+  if (error) throw new Error(error.message);
+  return data.id;
 }
 
 async function deleteQuestion(id) {
-  return one("DELETE FROM questions WHERE id = $1 RETURNING id", [id]);
+  const { data, error } = await supabase
+    .from("questions").delete().eq("id", id).select("id").single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 async function countQuestions({ areaId, bancaId }) {
-  const row = await one(
-    "SELECT COUNT(*)::int AS total FROM questions WHERE area_id = $1 AND banca_id = $2",
-    [areaId, bancaId]
-  );
-  return row?.total || 0;
+  const { count, error } = await supabase
+    .from("questions")
+    .select("*", { count: "exact", head: true })
+    .eq("area_id", areaId)
+    .eq("banca_id", bancaId);
+  if (error) throw new Error(error.message);
+  return count || 0;
 }
 
 // ── Progresso ─────────────────────────────────────────────────
 
 async function saveProgress({ userId, questionId, correct, timeSecs }) {
-  // Busca area/banca da questão para gravar na linha de progresso
-  const question = await one("SELECT area_id, banca_id FROM questions WHERE id = $1", [questionId]);
-  const areaId  = question?.area_id  || "";
-  const bancaId = question?.banca_id || "";
+  const { data: question } = await supabase
+    .from("questions").select("area_id, banca_id").eq("id", questionId).maybeSingle();
 
-  return one(
-    `INSERT INTO user_progress (user_id, area_id, banca_id, question_id, correct, time_secs)
-     VALUES ($1,$2,$3,$4,$5,$6)
-     ON CONFLICT (user_id, question_id)
-     DO UPDATE SET correct = EXCLUDED.correct, answered_at = now(), time_secs = EXCLUDED.time_secs
-     RETURNING id`,
-    [userId, areaId, bancaId, questionId, correct, timeSecs]
-  );
+  const { data, error } = await supabase
+    .from("user_progress")
+    .upsert(
+      {
+        user_id: userId,
+        area_id: question?.area_id || "",
+        banca_id: question?.banca_id || "",
+        question_id: questionId,
+        correct,
+        time_secs: timeSecs,
+        answered_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,question_id" }
+    )
+    .select("id").single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 async function getUserStats(userId, areaId, bancaId, subjects) {
-  const totRow = await one(
-    "SELECT COUNT(*)::int AS total FROM questions WHERE area_id = $1 AND banca_id = $2",
-    [areaId, bancaId]
-  );
+  const [{ count: totalQuestions }, progressRes] = await Promise.all([
+    supabase
+      .from("questions")
+      .select("*", { count: "exact", head: true })
+      .eq("area_id", areaId)
+      .eq("banca_id", bancaId),
+    supabase
+      .from("user_progress")
+      .select("correct, question_id, questions(subject)")
+      .eq("user_id", userId)
+      .eq("area_id", areaId)
+      .eq("banca_id", bancaId),
+  ]);
 
-  const progRows = await q(
-    `SELECT correct, q.subject
-     FROM user_progress up
-     JOIN questions q ON q.id = up.question_id
-     WHERE up.user_id = $1 AND up.area_id = $2 AND up.banca_id = $3`,
-    [userId, areaId, bancaId]
-  );
-
+  const progRows = progressRes.data || [];
   const answered = progRows.length;
   const correct  = progRows.filter(r => r.correct).length;
 
@@ -207,98 +259,129 @@ async function getUserStats(userId, areaId, bancaId, subjects) {
     bySubject[subj] = { answered: 0, correct: 0 };
   }
   for (const r of progRows) {
-    if (!bySubject[r.subject]) bySubject[r.subject] = { answered: 0, correct: 0 };
-    bySubject[r.subject].answered++;
-    if (r.correct) bySubject[r.subject].correct++;
+    const subj = r.questions?.subject;
+    if (!subj) continue;
+    if (!bySubject[subj]) bySubject[subj] = { answered: 0, correct: 0 };
+    bySubject[subj].answered++;
+    if (r.correct) bySubject[subj].correct++;
   }
 
-  return { totalQuestions: totRow?.total || 0, answered, correct, bySubject };
+  return { totalQuestions: totalQuestions || 0, answered, correct, bySubject };
 }
 
 // ── Flashcards ────────────────────────────────────────────────
 
 async function getFlashcards({ areaId, bancaId, subject }) {
-  return one(
-    "SELECT * FROM flashcard_sets WHERE area_id = $1 AND banca_id = $2 AND subject = $3",
-    [areaId, bancaId, subject]
-  );
+  const { data } = await supabase
+    .from("flashcard_sets")
+    .select("*")
+    .eq("area_id", areaId)
+    .eq("banca_id", bancaId)
+    .eq("subject", subject)
+    .maybeSingle();
+  return data;
 }
 
 async function listFlashcardSubjects({ areaId, bancaId }) {
-  return q(
-    "SELECT subject, jsonb_array_length(cards) AS count FROM flashcard_sets WHERE area_id = $1 AND banca_id = $2 ORDER BY subject",
-    [areaId, bancaId]
-  );
+  const { data, error } = await supabase
+    .from("flashcard_sets")
+    .select("subject, cards")
+    .eq("area_id", areaId)
+    .eq("banca_id", bancaId)
+    .order("subject");
+  if (error) throw new Error(error.message);
+  return (data || []).map(r => ({
+    subject: r.subject,
+    count: Array.isArray(r.cards) ? r.cards.length : 0,
+  }));
 }
 
 async function saveFlashcards({ areaId, bancaId, subject, cards }) {
-  return one(
-    `INSERT INTO flashcard_sets (area_id, banca_id, subject, cards)
-     VALUES ($1,$2,$3,$4::jsonb)
-     ON CONFLICT (area_id, banca_id, subject)
-     DO UPDATE SET cards = EXCLUDED.cards
-     RETURNING id`,
-    [areaId, bancaId, subject, JSON.stringify(cards)]
-  );
+  const { data, error } = await supabase
+    .from("flashcard_sets")
+    .upsert(
+      { area_id: areaId, banca_id: bancaId, subject, cards },
+      { onConflict: "area_id,banca_id,subject" }
+    )
+    .select("id").single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 // ── Simulados ─────────────────────────────────────────────────
 
 async function getSavedSimulados({ areaId, bancaId }) {
-  return q(
-    "SELECT id, name, size, created_at FROM saved_simulados WHERE area_id = $1 AND banca_id = $2 ORDER BY created_at DESC",
-    [areaId, bancaId]
-  );
+  const { data, error } = await supabase
+    .from("saved_simulados")
+    .select("id, name, size, created_at")
+    .eq("area_id", areaId)
+    .eq("banca_id", bancaId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 async function getSavedSimulado(id) {
-  return one("SELECT * FROM saved_simulados WHERE id = $1", [id]);
+  const { data } = await supabase
+    .from("saved_simulados").select("*").eq("id", id).maybeSingle();
+  return data;
 }
 
 async function saveSimuladoPack({ areaId, bancaId, name, size, questions }) {
-  return one(
-    `INSERT INTO saved_simulados (area_id, banca_id, name, size, questions)
-     VALUES ($1,$2,$3,$4,$5::jsonb)
-     RETURNING id`,
-    [areaId, bancaId, name, size, JSON.stringify(questions)]
-  );
+  const { data, error } = await supabase
+    .from("saved_simulados")
+    .insert({ area_id: areaId, banca_id: bancaId, name, size, questions })
+    .select("id").single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 async function deleteSimuladoPack(id) {
-  return one("DELETE FROM saved_simulados WHERE id = $1 RETURNING id", [id]);
+  const { data, error } = await supabase
+    .from("saved_simulados").delete().eq("id", id).select("id").single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 async function saveSimuladoHistory({ userId, areaId, bancaId, total, correct, timeSecs, questions, answers }) {
-  return one(
-    `INSERT INTO simulado_history (user_id, area_id, banca_id, total, correct, time_secs, questions, answers)
-     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb)
-     RETURNING id`,
-    [userId, areaId, bancaId, total, correct, timeSecs, JSON.stringify(questions), JSON.stringify(answers)]
-  );
+  const { data, error } = await supabase
+    .from("simulado_history")
+    .insert({ user_id: userId, area_id: areaId, banca_id: bancaId, total, correct, time_secs: timeSecs, questions, answers })
+    .select("id").single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 // ── Admin stats ───────────────────────────────────────────────
 
 async function getAdminStats() {
-  const [users, questions, simulados, subs] = await Promise.all([
-    one("SELECT COUNT(*)::int AS total FROM users"),
-    one("SELECT COUNT(*)::int AS total FROM questions"),
-    one("SELECT COUNT(*)::int AS total FROM saved_simulados"),
-    one("SELECT COUNT(*)::int AS total FROM subscriptions WHERE status = 'active'"),
+  const [usersRes, questionsRes, simuladosRes, subsRes] = await Promise.all([
+    supabase.from("users").select("*", { count: "exact", head: true }),
+    supabase.from("questions").select("*", { count: "exact", head: true }),
+    supabase.from("saved_simulados").select("*", { count: "exact", head: true }),
+    supabase.from("subscriptions").select("*", { count: "exact", head: true }).eq("status", "active"),
   ]);
   return {
-    totalUsers:     users?.total     || 0,
-    totalQuestions: questions?.total || 0,
-    totalSimulados: simulados?.total || 0,
-    activeSubscriptions: subs?.total || 0,
+    totalUsers:          usersRes.count     || 0,
+    totalQuestions:      questionsRes.count || 0,
+    totalSimulados:      simuladosRes.count || 0,
+    activeSubscriptions: subsRes.count      || 0,
   };
 }
 
 async function getQuestionCountByAreaBanca() {
-  return q(
-    `SELECT area_id, banca_id, COUNT(*)::int AS total
-     FROM questions GROUP BY area_id, banca_id ORDER BY area_id, banca_id`
-  );
+  const { data, error } = await supabase
+    .from("questions")
+    .select("area_id, banca_id");
+  if (error) throw new Error(error.message);
+
+  const counts = {};
+  for (const r of (data || [])) {
+    const key = `${r.area_id}__${r.banca_id}`;
+    counts[key] = (counts[key] || { area_id: r.area_id, banca_id: r.banca_id, total: 0 });
+    counts[key].total++;
+  }
+  return Object.values(counts).sort((a, b) => `${a.area_id}${a.banca_id}`.localeCompare(`${b.area_id}${b.banca_id}`));
 }
 
 module.exports = {
